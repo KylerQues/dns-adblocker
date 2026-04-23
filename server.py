@@ -1,30 +1,45 @@
 import socket
 from dnslib import DNSRecord, RR, A
 
-
 port = 53
 ip = '0.0.0.0'
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # First argument is saying we are using IPV4, and second argumenmt is for choosing UDP and not TCP
-sock.bind((ip,port)) # Only takes one parameter so an extra set of brackets is needed to make these variablews a tuple
+# Create UDP socket (IPv4)
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
+# Listen on port 53
+sock.bind((ip, port))
+
+# Domains to block
 blocked_domains = ["ads.google.com", "doubleclick.net"]
 
+# Run server forever
 while True:
-    data, addr = sock.recvfrom(512) # Returns a tuple of the data then the address
+    # Get DNS request
+    data, addr = sock.recvfrom(512)
+
+    # Parse DNS request
     request = DNSRecord.parse(data)
+
+    # Get domain name
     qname = str(request.q.qname).strip('.')
 
     print("Request:", qname)
 
+    # Create reply
     reply = request.reply()
 
+    # Check if blocked
     if qname in blocked_domains:
         print("BLOCKED")
+
+        # Block domain
         reply.add_answer(RR(qname, rdata=A("0.0.0.0")))
     else:
         print("ALLOWED")
+
+        # Allow (placeholder response)
         reply.add_answer(RR(qname, rdata=A("8.8.8.8")))
 
+    # Send response
     sock.sendto(reply.pack(), addr)
-
