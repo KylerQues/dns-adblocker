@@ -2,7 +2,7 @@
 
 # DNS Ad Blocker (Python)
 
-A simple DNS server built in Python that blocks specific domains using a blocklist.
+A simple DNS server built in Python that blocks specific domains and forwards allowed requests to a real DNS server.
 
 ## What it does
 
@@ -10,7 +10,7 @@ A simple DNS server built in Python that blocks specific domains using a blockli
 - Reads DNS requests from clients
 - Extracts the requested domain
 - Checks if the domain is blocked
-- Returns a blocked response or allows it (basic response)
+- Returns a blocked response or forwards allowed requests to an upstream DNS server
 
 ## Features
 
@@ -18,6 +18,9 @@ A simple DNS server built in Python that blocks specific domains using a blockli
 - Simple in-memory blocklist
 - Logs all DNS requests
 - Blocks domains by returning `0.0.0.0`
+- Includes a test client for verification
+- Supports subdomain blocking
+- Forwards allowed requests to upstream DNS (8.8.8.8)
 
 ## Requirements
 
@@ -27,4 +30,8 @@ pip install dnslib
 
 ## How To Run
 
+Start the server:
 python server.py
+
+Run the test client:
+python test_client.py
