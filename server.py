@@ -1,5 +1,6 @@
 import socket
 import logging
+import time
 from dnslib import DNSRecord, RR, A
 
 port = 15353
@@ -15,6 +16,9 @@ sock.bind((ip, port))
 # Domains to block
 blocked_domains = ["ads.google.com", "doubleclick.net"]
 
+# Cache: (qname, qtype) -> {response, expires_at}
+cache = {}
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
@@ -24,19 +28,31 @@ logging.basicConfig(
 logging.info(f"DNS server running on {ip}:{port}")
 
 while True:
-    # Get DNS request
     data, addr = sock.recvfrom(512)
 
     try:
-        # Parse DNS request
         request = DNSRecord.parse(data)
 
-        # Normalize domain
         qname = str(request.q.qname).strip('.').lower()
+        qtype = request.q.qtype
 
-        logging.info(f"Request from {addr[0]}: {qname}")
+        cache_key = (qname, qtype)
 
-        # Improved block matching
+        logging.info(f"Request from {addr[0]}: {qname} (type={qtype})")
+
+        # ---- CACHE CHECK ----
+        if cache_key in cache:
+            entry = cache[cache_key]
+
+            if time.time() < entry["expires_at"]:
+                logging.info(f"Cache hit: {qname}")
+                sock.sendto(entry["response"], addr)
+                continue
+            else:
+                logging.info(f"Cache expired: {qname}")
+                del cache[cache_key]
+
+        # ---- BLOCK CHECK ----
         is_blocked = any(
             qname == blocked or qname.endswith("." + blocked)
             for blocked in blocked_domains
@@ -47,7 +63,6 @@ while True:
 
             reply = request.reply()
 
-            # Improved response record
             reply.add_answer(
                 RR(
                     rname=qname,
@@ -58,18 +73,39 @@ while True:
                 )
             )
 
-            sock.sendto(reply.pack(), addr)
+            packed_reply = reply.pack()
+
+            # Cache blocked response
+            cache[cache_key] = {
+                "response": packed_reply,
+                "expires_at": time.time() + 60
+            }
+
+            sock.sendto(packed_reply, addr)
 
         else:
             logging.info(f"Allowed: {qname}")
 
-            # Separate socket for upstream 
             upstream_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             upstream_sock.settimeout(2)
 
             try:
                 upstream_sock.sendto(data, upstream_dns)
                 response_data, _ = upstream_sock.recvfrom(512)
+
+                dns_response = DNSRecord.parse(response_data)
+
+                # Extract TTL safely
+                if dns_response.rr:
+                    ttl = min([r.ttl for r in dns_response.rr])
+                else:
+                    ttl = 60  # fallback
+
+                # Cache response
+                cache[cache_key] = {
+                    "response": response_data,
+                    "expires_at": time.time() + ttl
+                }
 
                 sock.sendto(response_data, addr)
 

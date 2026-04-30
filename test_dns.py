@@ -1,61 +1,29 @@
 import socket
-import time
 from dnslib import DNSRecord
+import time
 
-# DNS server address (your local server)
 server = ("127.0.0.1", 15353)
 
-def send_query(domain):
-    # Build a DNS query for the given domain
-    query = DNSRecord.question(domain)
-
-    # Create a UDP socket
+def query(domain):
+    q = DNSRecord.question(domain)
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.sendto(q.pack(), server)
+    response, _ = sock.recvfrom(512)
+    sock.close()
+    return response
 
-    # Set timeout so it doesn't hang forever
-    sock.settimeout(2)
+domain = "google.com"
 
-    try:
-        # Start timing
-        start = time.time()
+print("First request (should MISS cache)")
+query(domain)
 
-        # Send DNS request to your server
-        sock.sendto(query.pack(), server)
+time.sleep(1)
 
-        # Receive response from server
-        data, _ = sock.recvfrom(512)
+print("Second request (should HIT cache)")
+query(domain)
 
-        # End timing
-        end = time.time()
+print("Waiting for TTL to expire...")
+time.sleep(65)
 
-        # Parse DNS response
-        response = DNSRecord.parse(data)
-
-        # Print query info
-        print(f"\nQuery: {domain}")
-
-        # Print how long the request took (in milliseconds)
-        print(f"Time: {(end - start) * 1000:.2f} ms")
-
-        # Print answers from DNS response
-        if response.rr:
-            for answer in response.rr:
-                print("Answer:", answer.rdata)
-        else:
-            print("No answer received")
-
-    except socket.timeout:
-        # Handle timeout case
-        print(f"\nQuery: {domain}")
-        print("Request timed out")
-
-    finally:
-        # Always close the socket
-        sock.close()
-
-
-# Run test queries immediately
-send_query("google.com")             # should be ALLOWED
-send_query("ads.google.com")         # should be BLOCKED
-send_query("test.doubleclick.net")   # should be BLOCKED
-send_query("notgoogleads.com")       # should be ALLOWED
+print("Third request (should MISS again)")
+query(domain)

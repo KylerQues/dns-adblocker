@@ -2,7 +2,7 @@
 
 # DNS Ad Blocker (Python)
 
-A simple DNS server built in Python that blocks specific domains and forwards allowed requests to a real DNS server.
+A simple DNS server built in Python that blocks specific domains, forwards allowed requests to a real DNS server, and caches responses using TTL-based expiration.
 
 ## What it does
 
@@ -11,6 +11,8 @@ A simple DNS server built in Python that blocks specific domains and forwards al
 - Extracts and normalizes the requested domain (case-insensitive, removes trailing dots)
 - Checks if the domain is blocked
 - Returns a blocked response or forwards allowed requests to an upstream DNS server (`8.8.8.8`)
+- Caches DNS responses to improve performance
+- Automatically expires cached entries using TTL (Time-To-Live)
 - Measures request processing time (latency)
 
 ## Features
@@ -24,6 +26,10 @@ A simple DNS server built in Python that blocks specific domains and forwards al
 - Forwards allowed requests to upstream DNS (8.8.8.8)
 - Uses a separate socket for upstream requests (prevents response mix-ups)
 - Handles DNS edge cases (e.g. domains with no A record or non-existent domains)
+- In-memory caching using a Python dictionary (hashmap)
+- Cache keys include `(domain, query type)` to avoid collisions
+- Stores expiration timestamps and removes stale entries
+- Caches both blocked and allowed responses
 
 ## Requirements
 
@@ -42,10 +48,13 @@ python test_dns.py
 ## Example Output
 
 Query: google.com  
-Time: ~20–50 ms  
+Time: ~20–50 ms (first request, cache miss)  
 Answer: real IP addresses  
+
+Query: google.com  
+Time: ~1–5 ms (cache hit)  
+Answer: cached IP addresses  
 
 Query: ads.google.com  
 Time: ~1–5 ms  
 Answer: 0.0.0.0  
-
